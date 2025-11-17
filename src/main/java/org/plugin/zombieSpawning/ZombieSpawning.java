@@ -9,6 +9,7 @@ public final class ZombieSpawning extends JavaPlugin {
     {
         Listener listener = Listener.getInstance();
         getServer().getPluginManager().registerEvents(listener, this);
+        ZombieSettings.getInstance().load();
     }
 
     @Override
