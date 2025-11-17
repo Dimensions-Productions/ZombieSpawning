@@ -1,0 +1,4 @@
+name: ZombieSpawning
+version: '0.1'
+main: org.plugin.zombieSpawning.ZombieSpawning
+api-version: '1.21'
