@@ -2,3 +2,9 @@ name: ZombieSpawning
 version: '0.1'
 main: org.plugin.zombieSpawning.ZombieSpawning
 api-version: '1.21'
+commands:
+  edit:
+    description: "This is a edit gui"
+    usage: "/edit"
+    permission: zombiespawning.command.edit
+    permission-message: "You do not have the required permission to run this command"
