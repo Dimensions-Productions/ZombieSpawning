@@ -12,6 +12,7 @@ public final class ZombieSpawning extends JavaPlugin {
         ZombieSettings.getInstance().load();
         getCommand("edit").setExecutor(new edit());
         getCommand("deleteregion").setExecutor(new deleteregion());
+        Listener.getInstance().StartZombieRecount();
     }
 
     @Override

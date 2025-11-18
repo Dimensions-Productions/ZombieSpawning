@@ -88,23 +88,46 @@ public class ZombieSettings
         return null;
     }
 
-    public int getLimit(Location loc)
+    public int getLimit(String regionId)
     {
-        String regionId = getRegionIdAtLocation(loc);
-        if (regionId != null)
+        if(regionId != null)
         {
             return config.getInt(regionId + ".limit", 5);
         }
-
         return 5;
     }
 
-    public void createRegion(String id, String worldName, int x1, int z1, int x2, int z2, int limit)
+    public int getInterval(String regionId)
+    {
+        if (regionId != null)
+        {
+            return config.getInt(regionId + ".interval", 100);
+        }
+        return 100;
+    }
+
+    public int getAmount(String regionId)
+    {
+        if (regionId != null)
+        {
+            return config.getInt(regionId + ".amount", 1);
+        }
+        return 1;
+    }
+
+    public Set<String> getAllRegionIds()
+    {
+        return config.getKeys(false);
+    }
+
+    public void createRegion(String id, String worldName, int x1, int z1, int x2, int z2, int limit, int interval, int amount)
     {
         config.set(id + ".world", worldName);
         config.set(id + ".pos1", x1 + "," + z1);
         config.set(id + ".pos2", x2 + "," + z2);
         config.set(id + ".limit", limit);
+        config.set(id + ".interval", interval);
+        config.set(id + ".amount", amount);
         save();
     }
 
@@ -112,6 +135,11 @@ public class ZombieSettings
     {
         config.set(id, null);
         save();
+    }
+
+    public boolean isRegionSet(String id)
+    {
+        return config.isSet(id);
     }
 
     public Location[] getRegionEdges(String id)

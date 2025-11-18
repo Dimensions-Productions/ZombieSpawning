@@ -6,23 +6,189 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Listener implements org.bukkit.event.Listener
 {
     private final static Listener instance = new Listener();
+
     private final Map<UUID, Location> loc1Save = new ConcurrentHashMap<>();
     private final Map<UUID, Location> loc2Save = new ConcurrentHashMap<>();
+
+    private final Map<String, Integer> regionZombieCounts = new ConcurrentHashMap<>();
+    private NamespacedKey regionKey;
+    private final Random random = new Random();
+    private boolean isRunning = false;
+
+    public void recountZombies()
+    {
+        Map<String, Integer> tempCounts = new HashMap<>();
+        ZombieSettings settings = ZombieSettings.getInstance();
+
+        for(World world : Bukkit.getWorlds())
+        {
+            for(Entity entity : world.getEntities())
+            {
+                if(entity.getType() == EntityType.ZOMBIE)
+                {
+                    String regionId = null;
+                    if(entity.getPersistentDataContainer().has(regionKey, PersistentDataType.STRING))
+                    {
+                        regionId = entity.getPersistentDataContainer().get(regionKey, PersistentDataType.STRING);
+                    }
+                    else
+                    {
+                        regionId = settings.getRegionIdAtLocation(entity.getLocation());
+                        if(regionId != null)
+                        {
+                            entity.getPersistentDataContainer().set(regionKey, PersistentDataType.STRING, regionId);
+                        }
+                    }
+                    if(regionId != null)
+                    {
+                        tempCounts.merge(regionId, 1, Integer::sum);
+                    }
+                }
+            }
+        }
+
+        regionZombieCounts.clear();
+        regionZombieCounts.putAll(tempCounts);
+
+        for (Map.Entry<String, Integer> entry : regionZombieCounts.entrySet()) {
+            Bukkit.broadcastMessage("[Count]Current zombies: " + entry.getValue() + " In: " + entry.getKey());
+        }
+    }
+
+    public void StartZombieRecount()
+    {
+        if (isRunning) return;
+        isRunning = true;
+        this.regionKey = new NamespacedKey(ZombieSpawning.getInstance(), "region_id");
+        ZombieSettings settings = ZombieSettings.getInstance();
+
+        recountZombies();
+
+        new BukkitRunnable()
+        {
+            @Override
+            public void run()
+            {
+                recountZombies();
+            }
+        }.runTaskTimer(ZombieSpawning.getInstance(), 600L, 600L);
+
+        for(String regionId : settings.getAllRegionIds())
+        {
+            StartRegionTask(regionId);
+        }
+    }
+
+    public void StartRegionTask(String regionId)
+    {
+        ZombieSettings settings = ZombieSettings.getInstance();
+        long interval = settings.getInterval(regionId);
+        int spawnAmount = settings.getAmount(regionId);
+
+        new BukkitRunnable()
+        {
+            @Override
+            public void run()
+            {
+                if(!settings.isRegionSet(regionId))
+                {
+                    this.cancel();
+                    return;
+                }
+
+                int limit = settings.getLimit(regionId);
+                int current = regionZombieCounts.getOrDefault(regionId, 0);
+                if(current == 0)
+                {
+                    Bukkit.broadcastMessage("-->Recounting Zombies because current is 0");
+                    recountZombies();
+                    current = regionZombieCounts.getOrDefault(regionId, 0);
+                }
+
+                Bukkit.broadcastMessage("[BeforeSpawn]Current zombies: " + current + " In: " + regionId);
+                if(current < limit)
+                {
+                    int needed = limit - current;
+                    int toSpawn = Math.min(needed, spawnAmount);
+                    for(int i = 0; i < toSpawn; i++)
+                    {
+                        SpawnZombie(regionId, settings);
+                    }
+                }
+            }
+        }.runTaskTimer(ZombieSpawning.getInstance(), interval, interval);
+    }
+
+    private void SpawnZombie(String regionId, ZombieSettings settings)
+    {
+        Location[] pos = settings.getRegionEdges(regionId);
+        if (pos.length < 2 || pos[0] == null) return;
+
+        World world = pos[0].getWorld();
+        if (world == null) return;
+
+        int x1 = pos[0].getBlockX();
+        int z1 = pos[0].getBlockZ();
+        int x2 = pos[1].getBlockX();
+        int z2 = pos[1].getBlockZ();
+
+        int minX = Math.min(x1, x2);
+        int maxX = Math.max(x1, x2);
+        int minZ = Math.min(z1, z2);
+        int maxZ = Math.max(z1, z2);
+
+        int x = random.nextInt(maxX - minX + 1) + minX;
+        int z = random.nextInt(maxZ - minZ + 1) + minZ;
+
+        if(!world.isChunkLoaded(x >> 4, z >> 4))
+        {
+            return;
+        }
+
+        int y = world.getHighestBlockYAt(x, z) + 1;
+
+        Zombie zombie = (Zombie) world.spawnEntity(new Location(world, x + 0.5, y, z + 0.5), EntityType.ZOMBIE);
+        zombie.setRemoveWhenFarAway(false);
+        zombie.getPersistentDataContainer().set(regionKey, PersistentDataType.STRING, regionId);
+
+        regionZombieCounts.merge(regionId, 1, Integer::sum);
+
+        Bukkit.broadcastMessage("[Spawn]Current zombies: " + regionZombieCounts.get(regionId) + " In: " + regionId);
+    }
+
+    @EventHandler
+    public void OnEntityDeath(EntityDeathEvent event)
+    {
+        if (event.getEntity().getType() == EntityType.ZOMBIE && regionKey != null)
+        {
+            if (event.getEntity().getPersistentDataContainer().has(regionKey, PersistentDataType.STRING))
+            {
+                String regionId = event.getEntity().getPersistentDataContainer().get(regionKey, PersistentDataType.STRING);
+                regionZombieCounts.computeIfPresent(regionId, (k, v) -> v > 0 ? v - 1 : 0);
+                Bukkit.broadcastMessage("[Death]Current zombies: " + regionZombieCounts.get(regionId) + " In: " + regionId);
+            }
+        }
+    }
 
     @EventHandler
     public void PlayerMove(PlayerMoveEvent event)
@@ -32,7 +198,7 @@ public class Listener implements org.bukkit.event.Listener
         Location from = event.getFrom();
         Location to = event.getTo();
 
-        if (to.getBlockX() == from.getBlockX() && to.getBlockZ() == from.getBlockZ())
+        if(to.getBlockX() == from.getBlockX() && to.getBlockZ() == from.getBlockZ())
         {
             return;
         }
@@ -53,7 +219,7 @@ public class Listener implements org.bukkit.event.Listener
                 for(int y = startY; y <= max_y; y++)
                 {
                     Block block = new Location(world, loc.getBlockX(), y, loc.getBlockZ()).getBlock();
-                    if(block.getType() == Material.GLOWSTONE) return;
+                    if(block.getType() == Material.GLOWSTONE) continue;
                     final BlockData originalBlockData = block.getBlockData();
                     block.setType(Material.GLOWSTONE);
 
@@ -80,11 +246,14 @@ public class Listener implements org.bukkit.event.Listener
     {
         if(event.getHand() == EquipmentSlot.OFF_HAND) return;
         Player player = event.getPlayer();
+        if(player.getGameMode() == GameMode.SURVIVAL || player.getGameMode() == GameMode.ADVENTURE) return;
         UUID uuid = player.getUniqueId();
         ItemStack itemStack = player.getInventory().getItemInMainHand();
+        if(itemStack.getType() != Material.STICK) return;
         ItemMeta itemMeta = itemStack.getItemMeta();
         if(itemMeta == null) return;
-        if((itemStack.getType() != Material.STICK) && (itemMeta.getCustomModelData() != 786786)) return;
+        if(!(itemMeta.hasCustomModelData())) return;
+        if((itemMeta.getCustomModelData() != 786786)) return;
         event.setCancelled(true);
         Location loc;
         if(event.getAction() == Action.LEFT_CLICK_BLOCK)
@@ -132,7 +301,10 @@ public class Listener implements org.bukkit.event.Listener
                 return;
             }
 
-            ZombieSettings.getInstance().createRegion(regionId, loc1.getWorld().getName(), loc1.getBlockX(), loc1.getBlockZ(), loc2.getBlockX(), loc2.getBlockZ(), 5);
+            ZombieSettings.getInstance().createRegion(regionId, loc1.getWorld().getName(), loc1.getBlockX(), loc1.getBlockZ(), loc2.getBlockX(), loc2.getBlockZ(), 5, 100, 1);
+
+            StartRegionTask(regionId);
+
             loc1Save.remove(playerId);
             loc2Save.remove(playerId);
 
