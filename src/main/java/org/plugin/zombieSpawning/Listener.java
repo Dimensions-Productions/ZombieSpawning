@@ -6,7 +6,6 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -138,8 +137,6 @@ public class Listener implements org.bukkit.event.Listener
             player.sendMessage("Region " + regionId + " created");
         }
     }
-
-
 
     public static Listener getInstance()
     {
