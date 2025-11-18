@@ -11,6 +11,7 @@ public final class ZombieSpawning extends JavaPlugin {
         getServer().getPluginManager().registerEvents(listener, this);
         ZombieSettings.getInstance().load();
         getCommand("edit").setExecutor(new edit());
+        getCommand("deleteregion").setExecutor(new deleteregion());
     }
 
     @Override

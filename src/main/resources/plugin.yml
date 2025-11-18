@@ -4,7 +4,12 @@ main: org.plugin.zombieSpawning.ZombieSpawning
 api-version: '1.21'
 commands:
   edit:
-    description: "This is a edit gui"
+    description: "This is a region creation wand"
     usage: "/edit"
     permission: zombiespawning.command.edit
+    permission-message: "You do not have the required permission to run this command"
+  deleteregion:
+    description: "This is a delete region command"
+    usage: "/deleteregion"
+    permission: zombiespawning.command.deleteregion
     permission-message: "You do not have the required permission to run this command"

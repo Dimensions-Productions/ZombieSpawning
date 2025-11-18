@@ -28,6 +28,7 @@ public class Listener implements org.bukkit.event.Listener
     public void PlayerMove(PlayerMoveEvent event)
     {
         Player player = event.getPlayer();
+        if(player.getGameMode() == GameMode.SURVIVAL || player.getGameMode() == GameMode.ADVENTURE) return;
         Location from = event.getFrom();
         Location to = event.getTo();
 
@@ -52,6 +53,7 @@ public class Listener implements org.bukkit.event.Listener
                 for(int y = startY; y <= max_y; y++)
                 {
                     Block block = new Location(world, loc.getBlockX(), y, loc.getBlockZ()).getBlock();
+                    if(block.getType() == Material.GLOWSTONE) return;
                     final BlockData originalBlockData = block.getBlockData();
                     block.setType(Material.GLOWSTONE);
 
