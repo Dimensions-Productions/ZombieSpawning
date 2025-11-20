@@ -6,7 +6,6 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -31,13 +30,14 @@ public class Listener implements org.bukkit.event.Listener
     private final Map<UUID, Location> loc2Save = new ConcurrentHashMap<>();
 
     private final Map<String, Integer> regionZombieCounts = new ConcurrentHashMap<>();
+    private final Map<String, BukkitRunnable> regionTasks = new ConcurrentHashMap<>();
     private NamespacedKey regionKey;
     private final Random random = new Random();
     private boolean isRunning = false;
 
     public void recountZombies()
     {
-        Map<String, Integer> tempCounts = new HashMap<>();
+        Map<String, java.util.List<Entity>> regionEntities = new HashMap<>();
         ZombieSettings settings = ZombieSettings.getInstance();
 
         for(World world : Bukkit.getWorlds())
@@ -59,19 +59,39 @@ public class Listener implements org.bukkit.event.Listener
                             entity.getPersistentDataContainer().set(regionKey, PersistentDataType.STRING, regionId);
                         }
                     }
+
                     if(regionId != null)
                     {
-                        tempCounts.merge(regionId, 1, Integer::sum);
+                        regionEntities.putIfAbsent(regionId, new java.util.ArrayList<>());
+                        regionEntities.get(regionId).add(entity);
                     }
                 }
             }
         }
 
         regionZombieCounts.clear();
-        regionZombieCounts.putAll(tempCounts);
 
-        for (Map.Entry<String, Integer> entry : regionZombieCounts.entrySet()) {
-            Bukkit.broadcastMessage("[Count]Current zombies: " + entry.getValue() + " In: " + entry.getKey());
+        for(Map.Entry<String, java.util.List<Entity>> entry : regionEntities.entrySet())
+        {
+            String regionId = entry.getKey();
+            java.util.List<Entity> zombies = entry.getValue();
+            int count = zombies.size();
+            int limit = settings.getLimit(regionId);
+
+            if(count > limit)
+            {
+                int toRemove = count - limit;
+                //Bukkit.broadcastMessage("§c[Cleanup] Removing " + toRemove + " excess zombies from " + regionId);
+                for(int i = 0; i < toRemove; i++)
+                {
+                    Entity zombieToRemove = zombies.get(i);
+                    zombieToRemove.remove();
+                }
+                count = limit;
+            }
+
+            regionZombieCounts.put(regionId, count);
+            //Bukkit.broadcastMessage("[Count]Current zombies: " + count + " In: " + regionId);
         }
     }
 
@@ -105,14 +125,14 @@ public class Listener implements org.bukkit.event.Listener
         long interval = settings.getInterval(regionId);
         int spawnAmount = settings.getAmount(regionId);
 
-        new BukkitRunnable()
+        BukkitRunnable task = new BukkitRunnable()
         {
             @Override
             public void run()
             {
                 if(!settings.isRegionSet(regionId))
                 {
-                    this.cancel();
+                    cancel();
                     return;
                 }
 
@@ -120,12 +140,12 @@ public class Listener implements org.bukkit.event.Listener
                 int current = regionZombieCounts.getOrDefault(regionId, 0);
                 if(current == 0)
                 {
-                    Bukkit.broadcastMessage("-->Recounting Zombies because current is 0");
+                    //Bukkit.broadcastMessage("-->Recounting Zombies because current is 0");
                     recountZombies();
                     current = regionZombieCounts.getOrDefault(regionId, 0);
                 }
 
-                Bukkit.broadcastMessage("[BeforeSpawn]Current zombies: " + current + " In: " + regionId);
+                //Bukkit.broadcastMessage("[BeforeSpawn]Current zombies: " + current + " In: " + regionId);
                 if(current < limit)
                 {
                     int needed = limit - current;
@@ -136,7 +156,15 @@ public class Listener implements org.bukkit.event.Listener
                     }
                 }
             }
-        }.runTaskTimer(ZombieSpawning.getInstance(), interval, interval);
+        };
+        task.runTaskTimer(ZombieSpawning.getInstance(), interval, interval);
+        regionTasks.put(regionId, task);
+    }
+
+    public void RestartRegionTask(String regionId)
+    {
+        regionTasks.get(regionId).cancel();
+        StartRegionTask(regionId);
     }
 
     private void SpawnZombie(String regionId, ZombieSettings settings)
@@ -173,7 +201,7 @@ public class Listener implements org.bukkit.event.Listener
 
         regionZombieCounts.merge(regionId, 1, Integer::sum);
 
-        Bukkit.broadcastMessage("[Spawn]Current zombies: " + regionZombieCounts.get(regionId) + " In: " + regionId);
+        //Bukkit.broadcastMessage("[Spawn]Current zombies: " + regionZombieCounts.get(regionId) + " In: " + regionId);
     }
 
     @EventHandler
@@ -185,7 +213,7 @@ public class Listener implements org.bukkit.event.Listener
             {
                 String regionId = event.getEntity().getPersistentDataContainer().get(regionKey, PersistentDataType.STRING);
                 regionZombieCounts.computeIfPresent(regionId, (k, v) -> v > 0 ? v - 1 : 0);
-                Bukkit.broadcastMessage("[Death]Current zombies: " + regionZombieCounts.get(regionId) + " In: " + regionId);
+                //Bukkit.broadcastMessage("[Death]Current zombies: " + regionZombieCounts.get(regionId) + " In: " + regionId);
             }
         }
     }

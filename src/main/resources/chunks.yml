@@ -1,0 +1,3 @@
+DefaultGlobalLimit: 5
+DefaultGlobalInterval: 100
+DefaultGlobalAmount: 1

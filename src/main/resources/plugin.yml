@@ -13,3 +13,8 @@ commands:
     usage: "/deleteregion"
     permission: zombiespawning.command.deleteregion
     permission-message: "You do not have the required permission to run this command"
+  editregion:
+    description: "This is a edit region menu command"
+    usage: "/editregion"
+    permission: zombiespawning.command.editregion
+    permission-message: "You do not have the required permission to run this command"

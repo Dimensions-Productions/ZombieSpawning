@@ -14,6 +14,10 @@ public class ZombieSettings
     private File file;
     private YamlConfiguration config;
 
+    private int DefaultGlobalLimit;
+    private int DefaultGlobalInterval;
+    private int DefaultGlobalAmount;
+
     private ZombieSettings()
     {
 
@@ -40,6 +44,10 @@ public class ZombieSettings
             Bukkit.getLogger().severe("Failed to load chunks.yml configuration file!");
             e.printStackTrace();
         }
+
+        DefaultGlobalLimit = config.getInt("DefaultGlobalLimit");
+        DefaultGlobalInterval = config.getInt("DefaultGlobalInterval");
+        DefaultGlobalAmount = config.getInt("DefaultGlobalAmount");
     }
 
     public String getRegionIdAtLocation(Location loc)
@@ -92,32 +100,72 @@ public class ZombieSettings
     {
         if(regionId != null)
         {
-            return config.getInt(regionId + ".limit", 5);
+            return config.getInt(regionId + ".limit", DefaultGlobalLimit);
         }
-        return 5;
+        return DefaultGlobalLimit;
+    }
+
+    public void setLimit(String regionId, int newLimit)
+    {
+        if(regionId != null)
+        {
+            config.set(regionId + ".limit", newLimit);
+            save();
+        }
+    }
+
+    public void setInterval(String regionId, int newInterval)
+    {
+        if(regionId != null)
+        {
+            config.set(regionId + ".interval", newInterval);
+            save();
+        }
+    }
+
+    public void setAmount(String regionId, int newAmount)
+    {
+        if(regionId != null)
+        {
+            config.set(regionId + ".amount", newAmount);
+            save();
+        }
     }
 
     public int getInterval(String regionId)
     {
         if (regionId != null)
         {
-            return config.getInt(regionId + ".interval", 100);
+            return config.getInt(regionId + ".interval", DefaultGlobalInterval);
         }
-        return 100;
+        return DefaultGlobalInterval;
     }
 
     public int getAmount(String regionId)
     {
         if (regionId != null)
         {
-            return config.getInt(regionId + ".amount", 1);
+            return config.getInt(regionId + ".amount", DefaultGlobalAmount);
         }
-        return 1;
+        return DefaultGlobalAmount;
+    }
+
+    public String getWorld(String regionId)
+    {
+        if(regionId != null)
+        {
+            return config.getString(regionId + ".world");
+        }
+        return "world";
     }
 
     public Set<String> getAllRegionIds()
     {
-        return config.getKeys(false);
+        Set<String> returnable = config.getKeys(false);
+        returnable.remove("DefaultGlobalLimit");
+        returnable.remove("DefaultGlobalInterval");
+        returnable.remove("DefaultGlobalAmount");
+        return returnable;
     }
 
     public void createRegion(String id, String worldName, int x1, int z1, int x2, int z2, int limit, int interval, int amount)
